@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" pageTitle="Flex &amp; CFC Mappings" initialize="{getIP()}" layout="vertical" backgroundColor="#6778EB" viewSourceURL="srcview/index.html">
+	<mx:RemoteObject id="roMapping"
+		destination="ColdFusion" 
+		source="flextraining.cfmapping.cfc.mapping"
+		showBusyCursor="true">
+		<mx:method name="getVisitorIP" result="getVisitorIP_handler(event.result)" fault="ro_fault(event)"/>
+		<mx:method name="getMappings" result="getMappings_handler(event.result)" fault="ro_fault(event)"/>
+		<mx:method name="createMapping" result="createMapping_handler(event.result)" fault="ro_fault(event)"/>
+		<mx:method name="updateMappings" result="updateMappings_handler(event.result)" fault="ro_fault(event)"/>
+		<mx:method name="deleteMapping" result="deleteMapping_handler(event.result)" fault="ro_fault(event)"/>
+	</mx:RemoteObject>
+
+	<mx:Style>
+		Panel {
+		   borderColor: #666666;
+		   borderAlpha: 0.4;
+		   roundedBottomCorners: true;
+		   headerHeight: 22;
+		   backgroundAlpha: 1;
+		   backgroundColor: #E4E4E4;
+		   titleStyleName: "mypanelTitle";
+		}
+		
+		.mypanelTitle {
+		   color: #ff3300;
+		   textAlign: left;
+		   fontSize: 12;
+		   fontWeight: bold;
+		   fontStyle: italic;
+		   paddingLeft: 20;
+		}
+	</mx:Style>
+
+	<mx:Script>
+		<![CDATA[
+		    import mx.rpc.events.ResultEvent;
+         	import mx.rpc.events.FaultEvent;
+		    import flash.events.Event;
+		    import mx.controls.Alert;
+         	import mx.utils.ObjectUtil;
+	    	import mx.collections.ArrayCollection;
+	    	import mx.events.CloseEvent;
+			import mx.events.ValidationResultEvent;
+			
+		    [Bindable] private var oMappings:Object = new Object();
+			[Bindable] private var arcMapLPath:ArrayCollection = new ArrayCollection();
+			[Bindable] private var arcMapDPath:ArrayCollection = new ArrayCollection();
+			[Bindable] private var aryPath:Array = new Array();
+		    private var blnSuccess:Boolean = false;
+		    private var selItm:String = new String();
+			private var vResult:ValidationResultEvent;
+			private var msg:String = "";
+			private var count:Number = 0;
+			private var msgprefix:String = "";
+		    private var sIP:String;
+
+			private function getIP():void {
+				roMapping.getVisitorIP();
+			}
+
+		    private function getVisitorIP_handler(result:Object):void {
+		    	sIP = result.toString();
+		    	if (sIP.substr(0,8)=="192.168.") {
+		    		hbxAddMap.enabled = true;
+		    		roMapping.getMappings()
+		    	} else {
+		    		Alert.show("Sorry, access to this page is restricted...");
+		    	}
+		    }
+
+			private function getMappings_handler(result:Object):void {
+				oMappings = result;
+				arcMapLPath.removeAll();
+				arcMapDPath.removeAll();
+				for (var i:uint=0; i<oMappings.logicalpath.length; i++) {
+					arcMapLPath.addItem(oMappings.logicalpath[i]);
+				}
+				for (i=0; i<oMappings.directorypath.length; i++) {
+					arcMapDPath.addItem(oMappings.directorypath[i]);
+				}
+			}
+
+			private function createMapping(selLItm:String, selDItm:String):void {
+				roMapping.createMapping(selLItm, selDItm);
+			}
+
+			private function createMapping_handler(result:Boolean):void {
+				blnSuccess = result;
+				if (blnSuccess) {
+					//Alert.show(blnSuccess.toString());
+					tiLPath.text = "";
+					tiDPath.text = "";
+					roMapping.getMappings();
+				}
+			}
+			
+			private function updateMappings(selLItm:String):void {
+				for (var i:uint=0; i<oMappings.logicalpath.length; i++) {
+					if (selLItm==oMappings.logicalpath[i]) {
+						var selDItm:String = oMappings.directorypath[i];
+					}
+				}
+				Alert.show(selLItm + " " + selDItm);
+				roMapping.updateMappings(selLItm, selDItm);
+			}
+
+			private function updateMappings_handler(result:Boolean):void {
+				blnSuccess = result;
+				if (blnSuccess) {
+					//Alert.show(blnSuccess.toString());
+					tiLPath.text = "";
+					tiDPath.text = "";
+					roMapping.getMappings();
+				}
+			}
+			
+	        private function validateForm(selLItm:String, selDItm:String):void {
+				msg = "";
+				count = 0;
+	            // Validate the logical path. 
+	            vResult = vLPath.validate();
+	            // If the logical path is invalid.
+	            if (vResult.type==ValidationResultEvent.INVALID) {
+	                msg = "You must enter the logical path of the mapping.\n\n";
+	                count++;
+		        }
+	            // Validate the directory path. 
+	            vResult = vDPath.validate();
+	            // If the directory path is invalid.
+	            if (vResult.type==ValidationResultEvent.INVALID) { 
+	                msg = msg + "You must enter the full directory path of the mapping.\n\n";
+	                count++;
+		        }
+				if (msg!="") {
+					if (count>1) {
+						msgprefix = "You must correct the following issues:";
+					}
+					mx.controls.Alert.show(msgprefix + "\n\n" + msg, "Required Fields Alert...");
+					return;
+				} else {
+					createMapping(selLItm, selDItm);
+				}
+			}
+			
+			private function deleteMapping(selLItm:String):void {
+				selItm = selLItm;
+				Alert.show("Do you want to delete this mapping?\n\n" + selItm + "\n\n", "Delete Mapping", 3, this, alertClickHandler);
+			}
+
+            private function alertClickHandler(event:CloseEvent):void {
+                if (event.detail==Alert.YES) {
+	 				roMapping.deleteMapping(selItm);
+				}
+            }
+
+			private function deleteMapping_handler(result:Boolean):void {
+				blnSuccess = result;
+				if (blnSuccess) {
+					//Alert.show(blnSuccess.toString());
+					roMapping.getMappings();
+				}
+			}
+
+	        private function ro_fault(event:FaultEvent):void {
+	            // dump error message
+	            Alert.show(ObjectUtil.toString(event.fault));
+	        }
+		]]>
+	</mx:Script>
+	
+	<!-- Define validators. -->
+	<mx:StringValidator id="vLPath" source="{tiLPath}" property="text" requiredFieldError="Please enter the logical path of the mapping."/>
+	<mx:StringValidator id="vDPath" source="{tiDPath}" property="text" requiredFieldError="Please enter the full directory path of the mapping."/>
+
+	<mx:Panel id="pnl" title="ColdFusion Mappings" color="navy" layout="absolute" paddingLeft="10" paddingRight="10" width="98%" height="98%">
+		<mx:HBox y="10">
+			<mx:Spacer width="45"/>
+			<mx:Label text="Action" textDecoration="underline" width="50"/>
+			<mx:Spacer width="18"/>
+			<mx:Label text="Logical Path" textDecoration="underline" width="200"/>
+			<mx:Label text="Directory Path" textDecoration="underline"/>
+		</mx:HBox>
+		<mx:HBox y="34">
+			<mx:VBox>
+				<mx:Repeater id="rptDeleteBtn" dataProvider="{arcMapLPath}">
+					<mx:Button label="Delete" click="deleteMapping(event.currentTarget.getRepeaterItem())" width="60"/>
+				</mx:Repeater>
+			</mx:VBox>
+			<mx:VBox>
+				<mx:Repeater id="rptUpdateBtn" dataProvider="{arcMapLPath}">
+					<mx:Button label="Update" click="updateMappings(event.currentTarget.getRepeaterItem())" width="60"/>
+				</mx:Repeater>
+			</mx:VBox>
+			<mx:VBox>
+				<mx:Repeater id="rptMapLPath" dataProvider="{arcMapLPath}">
+					<mx:TextInput text="{rptMapLPath.currentItem}" width="200"/>
+				</mx:Repeater>
+			</mx:VBox>
+			<mx:VBox>
+				<mx:Repeater id="rptMapDPath" dataProvider="{arcMapDPath}">
+					<mx:TextInput text="{rptMapDPath.currentItem}" width="450"/>
+				</mx:Repeater>
+			</mx:VBox>
+		</mx:HBox>
+		<mx:Spacer height="5"/>
+		<mx:HRule width="100%"/>
+		<mx:Spacer height="5"/>
+		<mx:ControlBar>
+			<mx:HBox id="hbxAddMap" enabled="false" left="0" top="0" bottom="390" right="-458">
+				<mx:Image source="assets/images/poweredbycfmx.gif"/>
+				<mx:VBox>
+					<mx:Spacer height="6"/>
+					<mx:HBox>
+						<mx:Button label="Add" click="validateForm(tiLPath.text, tiDPath.text)" width="45"/>
+						<mx:FormItem id="fitLPath" required="true">
+							<mx:TextInput id="tiLPath" width="200"/>
+						</mx:FormItem>
+						<mx:FormItem id="fitDPath" required="true">
+							<mx:TextInput id="tiDPath" width="{pnl.width - 468}"/>
+						</mx:FormItem>
+					</mx:HBox>
+				</mx:VBox>
+			</mx:HBox>
+		</mx:ControlBar>
+	</mx:Panel>
+	
+	
+</mx:Application>
